@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Journal de classe - Notion Style</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background:#f5f5f5;
+    margin:0; padding:0;
+  }
+  h1,h2,h3{ margin:0; }
+  h1 { text-align:center; padding:20px; color:#111; font-weight:600; }
+
+  .container {
+    max-width:1200px;
+    margin:20px auto;
+    padding:0 20px;
+  }
+
+  .card {
+    background:white;
+    border-radius:12px;
+    padding:20px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.08);
+    margin-bottom:20px;
+  }
+
+  button {
+    padding:10px 20px;
+    margin:5px 5px 5px 0;
+    border:none;
+    border-radius:10px;
+    font-weight:500;
+    cursor:pointer;
+    transition:0.2s;
+  }
+  .btn-primary { background:#3498db; color:white; }
+  .btn-primary:hover { background:#2980b9; }
+  .btn-red { background:#e74c3c; color:white; }
+  .btn-red:hover { background:#c0392b; }
+  .btn-green { background:#2ecc71; color:white; }
+  .btn-green:hover { background:#27ae60; }
+
+  input[type="date"], select {
+    width:100%; padding:8px; border-radius:6px; border:1px solid #ccc; margin-bottom:10px;
+  }
+  label { display:block; margin:5px 0; }
+
+  #historique {
+    max-height:300px; overflow-y:auto; background:#f7f8fa;
+    padding:10px; border-radius:8px; border:1px solid #ddd; margin-top:10px;
+  }
+  #historique li { padding:8px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; }
+  canvas { border-radius:12px; background:white; padding:10px; box-shadow:0 4px 10px rgba(0,0,0,0.05); margin-top:15px; }
+
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+
+<h1>📘 Journal de classe</h1>
+<div class="container">
+
+  <!-- PAGE PRINCIPALE -->
+  <div id="page-principale" class="card">
+    <button class="btn-primary" onclick="afficherSaisie()">📝 Saisie de la journée</button>
+    <button class="btn-primary" onclick="afficherBase()">📊 Base élèves</button>
+  </div>
+
+  <!-- PAGE SAISIE -->
+  <div id="page-saisie" class="card hidden">
+    <button class="btn-red" onclick="retourAccueil()">⬅ Retour</button>
+    <h2>Saisie de la journée</h2>
+    <button class="btn-red" onclick="choisirClasse('6eA')">6eA</button>
+    <button class="btn-red" onclick="choisirClasse('6eB')">6eB</button>
+
+    <div id="formulaire" class="hidden">
+      <p id="titreClasse" style="font-weight:bold; margin-top:10px;"></p>
+      <label>Date : <input type="date" id="date"></label>
+      <label>Élève : <select id="eleve"></select></label>
+
+      <h3>🟥 Négatif</h3>
+      <label><input type="checkbox" id="bavardage"> 🗣️ Bavardage</label>
+      <label><input type="checkbox" id="parle"> ✋ Parle sans lever la main</label>
+      <label><input type="checkbox" id="leve"> 🚶 Se lève</label>
+      <label><input type="checkbox" id="materiel"> 📚 Pas de matériel</label>
+      <label><input type="checkbox" id="travail"> ❌ Travail non fait</label>
+
+      <h3>🟩 Positif</h3>
+      <label><input type="checkbox" id="participation"> ✅ Bonne participation</label>
+      <label><input type="checkbox" id="soigne"> ✍️ Travail soigné</label>
+
+      <button class="btn-green" onclick="enregistrer()">Enregistrer ✅</button>
+      <span id="msgEnregistre" style="color:green; font-weight:bold; margin-left:5px;"></span>
+    </div>
+  </div>
+
+  <!-- PAGE BASE ELEVE -->
+  <div id="page-base" class="card hidden">
+    <button class="btn-red" onclick="retourAccueil()">⬅ Retour</button>
+    <h2>Base élèves</h2>
+    <label>Classe : 
+      <select id="classeBase" onchange="afficherEleves()">
+        <option value="">--Choisir--</option>
+        <option value="6eA">6eA</option>
+        <option value="6eB">6eB</option>
+      </select>
+    </label>
+    <div id="listeEleves"></div>
+
+    <div id="statsEleve" class="hidden">
+      <canvas id="chart" width="600" height="400"></canvas>
+      <h3 id="titreHistorique">🕒 Historique chronologique</h3>
+      <ul id="historique"></ul>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const eleves = { "6eA":["Noah","Emma","Lucas"], "6eB":["Lina","Adam","Yasmine"] };
+let classeActuelle=""; 
+let chartInstance=null;
+
+// AFFICHAGE PAGES
+function afficherSaisie(){ document.getElementById("page-principale").classList.add("hidden"); document.getElementById("page-saisie").classList.remove("hidden"); }
+function afficherBase(){ document.getElementById("page-principale").classList.add("hidden"); document.getElementById("page-base").classList.remove("hidden"); document.getElementById("statsEleve").classList.add("hidden"); }
+function retourAccueil(){ document.getElementById("page-principale").classList.remove("hidden"); document.getElementById("page-saisie").classList.add("hidden"); document.getElementById("page-base").classList.add("hidden"); document.getElementById("msgEnregistre").innerText=""; }
+
+// SAISIE
+function choisirClasse(classe){
+  classeActuelle=classe;
+  document.getElementById("formulaire").style.display="block";
+  document.getElementById("titreClasse").innerText="Classe "+classe;
+  const sel=document.getElementById("eleve"); sel.innerHTML="";
+  eleves[classe].forEach(e=>{ const opt=document.createElement("option"); opt.textContent=e; sel.appendChild(opt); });
+  document.getElementById("date").valueAsDate=new Date();
+}
+
+function enregistrer(){
+  const e={
+    classe:classeActuelle,
+    date:document.getElementById("date").value,
+    eleve:document.getElementById("eleve").value,
+    bavardage:document.getElementById("bavardage").checked,
+    parle:document.getElementById("parle").checked,
+    leve:document.getElementById("leve").checked,
+    materiel:document.getElementById("materiel").checked,
+    travail:document.getElementById("travail").checked,
+    participation:document.getElementById("participation").checked,
+    soigne:document.getElementById("soigne").checked
+  };
+  const data=JSON.parse(localStorage.getItem("journal"))||[];
+  data.push(e);
+  localStorage.setItem("journal",JSON.stringify(data));
+  document.getElementById("msgEnregistre").innerText="✅ Enregistré !";
+  document.querySelectorAll("#formulaire input[type=checkbox]").forEach(cb=>cb.checked=false);
+}
+
+// BASE ELEVE
+function afficherEleves(){
+  const classe=document.getElementById("classeBase").value;
+  const div=document.getElementById("listeEleves");
+  div.innerHTML="";
+  document.getElementById("statsEleve").classList.add("hidden");
+  if(!classe) return;
+  eleves[classe].forEach(e=>{
+    const btn=document.createElement("button"); btn.textContent=e; btn.className="btn-primary";
+    btn.onclick=()=>afficherStatsEleve(classe,e);
+    div.appendChild(btn);
+  });
+}
+
+// STATS ELEVE
+function afficherStatsEleve(classe,eleve){
+  const data=JSON.parse(localStorage.getItem("journal"))||[];
+  const stats={bavardage:0,parle:0,leve:0,materiel:0,travail:0,participation:0,soigne:0};
+  const historiqueEntries=[];
+  data.forEach((e,index)=>{
+    if(e.classe===classe && e.eleve===eleve){
+      Object.keys(stats).forEach(k=>{ if(e[k]) stats[k]++; });
+      const neg=[],pos=[];
+      if(e.bavardage) neg.push("🗣️ Bavardage");
+      if(e.parle) neg.push("✋ Parle sans lever la main");
+      if(e.leve) neg.push("🚶 Se lève");
+      if(e.materiel) neg.push("📚 Pas matériel");
+      if(e.travail) neg.push("❌ Travail non fait");
+      if(e.participation) pos.push("✅ Bonne participation");
+      if(e.soigne) pos.push("✍️ Travail soigné");
+      historiqueEntries.push({date:e.date,neg,pos,index});
+    }
+  });
+
+  const labels=["Bavardage","Parle","Se lève","Pas matériel","Travail non fait","Bonne participation","Travail soigné"];
+  const values=[stats.bavardage,stats.parle,stats.leve,stats.materiel,stats.travail,stats.participation,stats.soigne];
+
+  if(chartInstance) chartInstance.destroy();
+  const ctx=document.getElementById("chart").getContext('2d');
+  chartInstance=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{label:eleve,data:values,backgroundColor:['#e74c3c','#e74c3c','#e74c3c','#e74c3c','#e74c3c','#2ecc71','#2ecc71']}]},
+    options:{responsive:true,scales:{y:{beginAtZero:true,precision:0}}}
+  });
+  document.getElementById("statsEleve").classList.remove("hidden");
+
+  const ul=document.getElementById("historique"); ul.innerHTML="";
+  historiqueEntries.sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(e=>{
+    const li=document.createElement("li");
+    li.textContent=`${e.date} → Positif: ${e.pos.join(",")||"-"} ; Négatif: ${e.neg.join(",")||"-"}`;
+    const btnDel=document.createElement("button"); btnDel.textContent="Supprimer ❌"; btnDel.className="btn-red"; btnDel.style.marginLeft="10px";
+    btnDel.onclick=()=>{ supprimerEntree(e.index,classe,eleve); };
+    li.appendChild(btnDel);
+    ul.appendChild(li);
+  });
+}
+
+function supprimerEntree(index,classe,eleve){
+  let data=JSON.parse(localStorage.getItem("journal"))||[];
+  data.splice(index,1);
+  localStorage.setItem("journal",JSON.stringify(data));
+  afficherStatsEleve(classe,eleve);
+}
+</script>
+
+</body>
+</html>
